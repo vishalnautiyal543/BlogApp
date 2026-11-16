@@ -16,7 +16,6 @@ const userSchema = new mongoose.Schema(
     username: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       lowercase: true,
       minlength: 3,
@@ -27,7 +26,6 @@ const userSchema = new mongoose.Schema(
     email: {
       type: String,
       required: true,
-      unique: true,
       lowercase: true,
       trim: true,
     },
@@ -159,4 +157,4 @@ userSchema.index({ username: 1 }, { unique: true });
 
 const User = mongoose.model("User", userSchema);
 
-export {User};
+export { User };
