@@ -25,3 +25,11 @@ export const registerSchema = z.object({
     .max(72),
 
 });
+
+export const loginSchema = z.object({
+  email: z.email(),
+
+  password: z
+    .string()
+    .min(8, "Password is required")
+})

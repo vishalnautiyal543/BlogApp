@@ -131,6 +131,12 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // refresh token
+    refreshToken:{
+      type:String,
+      default:""
+    }
   },
   {
     timestamps: true,
@@ -148,6 +154,9 @@ userSchema.pre("save", async function () {
 
 // Password comparison method
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (typeof candidatePassword !== "string" || typeof this.password !== "string") {
+    return false;
+  }
   return bcrypt.compare(candidatePassword, this.password);
 };
 

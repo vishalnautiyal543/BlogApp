@@ -1,7 +1,10 @@
 import { User } from "./user.model.js";
-import {ApiError} from "../../utils/ApiError.js"
+import { ApiError } from "../../utils/ApiError.js";
+import jwt from "jsonwebtoken";
+import { REFRESH_TOKEN_SECRET } from "../../config/env.js";
+import { generateAccessToken, generateRefreshToken } from "../../utils/generateToken.js";
 
-
+// register user service
 const registerUser = async ({ name, username, email, password }) => {
 
   const existingUser = await User.findOne({
@@ -35,9 +38,85 @@ const registerUser = async ({ name, username, email, password }) => {
       throw new ApiError(400, "Invalid user data", [error.message]);
     }
 
-    throw new ApiError(500, "User registration failed", [error]);
+    throw error;
   }
 }
 
 
-export {registerUser}
+
+// login user service
+const loginUser = async ({ email, password }) => {
+  
+  const user = await User.findOne({ email: email.toLowerCase().trim() }).select("+password");
+
+  if (!user || user.authProvider !== "local") {
+    throw new ApiError(401, "Invalid user credentials");
+  }
+
+  const isPasswordCorrect = await user.comparePassword(password);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(401, "Invalid user credentials");
+  }
+
+  if (!user.isActive) {
+    throw new ApiError(403, "This account is inactive");
+  }
+
+  const accessToken = generateAccessToken(user._id);
+  const refreshToken = generateRefreshToken(user._id);
+  user.refreshToken = refreshToken;
+  user.lastLoginAt = new Date();
+  await user.save({ validateBeforeSave: false });
+
+  const safeUser = user.toObject();
+  delete safeUser.password;
+  delete safeUser.refreshToken;
+  return { user: safeUser, accessToken, refreshToken };
+};
+
+
+
+// refresh token
+const refreshUserTokens = async (token) => {
+  let payload;
+  try {
+    payload = jwt.verify(token, REFRESH_TOKEN_SECRET);
+  } catch {
+    throw new ApiError(401, "Invalid or expired refresh token");
+  }
+
+  if (payload.type !== "refresh") {
+    throw new ApiError(401, "Invalid refresh token");
+  }
+
+  const user = await User.findById(payload.sub);
+  if (!user || !user.isActive || user.refreshToken !== token) {
+    throw new ApiError(401, "Invalid or expired refresh token");
+  }
+
+  const accessToken = generateAccessToken(user._id);
+  const refreshToken = generateRefreshToken(user._id);
+  user.refreshToken = refreshToken;
+  await user.save({ validateBeforeSave: false });
+  return { accessToken, refreshToken };
+};
+
+
+
+// logout user
+const logoutUser = async (token) => {
+  if (!token) return;
+  let payload;
+  try {
+    payload = jwt.verify(token, REFRESH_TOKEN_SECRET);
+  } catch {
+    return;
+  }
+  if (payload.type === "refresh") {
+    await User.updateOne({ _id: payload.sub, refreshToken: token }, { $set: { refreshToken: "" } });
+  }
+};
+
+
+export { registerUser, loginUser, refreshUserTokens, logoutUser };
